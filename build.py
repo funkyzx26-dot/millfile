@@ -75,9 +75,13 @@ def footer():
     size_items = "\n".join(
         '        <li><a href="/%s/">Compress to %s</a></li>' % (slug_of(kb), label(kb))
         for kb in SIZE_ORDER)
+    raw_items = "\n".join(
+        '        <li><a href="/%s/">%s</a></li>' % (slug, esc(copy.RAW[slug]["short"]))
+        for slug in copy.RAW_ORDER)
     return ('<footer class="site-foot"><div class="wrap">'
             '<div class="cols">'
             '<div><b>By target size</b><ul>\n%s\n    </ul></div>'
+            '<div><b>By format</b><ul>\n%s\n    </ul></div>'
             '<div><b>%s</b><ul>'
             '        <li><a href="/how-it-works/">How it works</a></li>'
             '        <li><a href="/about/">About</a></li>'
@@ -90,9 +94,10 @@ def footer():
             '        <li>Free, unlimited, no sign-up</li>'
             '    </ul></div>'
             '</div>'
-            '<p class="legal">© %d %s — free browser-based PDF compression. '
-            'Your documents are processed on this device and never uploaded.</p>'
-            '</div></footer>') % (size_items, esc(BRAND), datetime.date.today().year, esc(BRAND))
+            '<p class="legal">© %d %s — free browser-based PDF compression and RAW '
+            'conversion. Your files are processed on this device and never uploaded.</p>'
+            '</div></footer>') % (size_items, raw_items, esc(BRAND),
+                                  datetime.date.today().year, esc(BRAND))
 
 
 def head(title, desc, page_url, ld_objs, body_attr=""):
@@ -144,6 +149,46 @@ def tool_block():
             '    <ul class="queue" id="queue"></ul>\n'
             '    <button class="btn" type="button" id="download-all" hidden>Download all (.zip)</button>\n'
             '  </section>') % chips
+
+
+RAW_QUALITY = (("High", "0.92"), ("Standard", "0.85"), ("Small", "0.72"))
+
+# The RAW drop box uses a different id on purpose: the scope gate tells the two
+# tool families apart by marker, so "raw-drop" must not match the PDF marker.
+RAW_ACCEPT = (".arw,.srf,.sr2,.cr2,.cr3,.nef,.nrw,.dng,.orf,.raf,.rw2,.raw,.pef,"
+              ".srw,.erf,.kdc,.dcr,.mos,.3fr,.iiq,.rwl,.mef,.mrw,.x3f,.jpg,.jpeg")
+
+
+def raw_tool_block():
+    chips = "\n".join(
+        '      <button class="chip%s" type="button" data-q="%s" aria-pressed="%s">%s</button>'
+        % (" chip--on" if name == "Standard" else "", q,
+           "true" if name == "Standard" else "false", name)
+        for name, q in RAW_QUALITY)
+    return ('  <section class="tool" id="raw-tool">\n'
+            '    <div class="chips" id="raw-quality" role="group" aria-label="JPEG quality">\n'
+            '      <span class="tool__target" style="margin:0 8px 0 0;align-self:center">Quality:</span>\n'
+            '%s\n'
+            '    </div>\n'
+            '    <p class="tool__target">Selected: <strong id="raw-quality-label">Standard</strong></p>\n'
+            '    <label class="drop" id="raw-drop">\n'
+            '      <strong>Drop a RAW file here</strong>\n'
+            '      <span class="hint">or click to choose files — converted on this device, never uploaded</span>\n'
+            '      <input class="file-input" type="file" id="raw-input" accept="%s" multiple>\n'
+            '    </label>\n'
+            '    <p class="status" id="raw-status" role="status" aria-live="polite"></p>\n'
+            '    <ul class="queue" id="raw-queue"></ul>\n'
+            '  </section>') % (chips, RAW_ACCEPT)
+
+
+def rawlinks(current=None):
+    parts = []
+    for slug in copy.RAW_ORDER:
+        if slug == current:
+            continue
+        parts.append('<a href="/%s/">%s</a>' % (slug, esc(copy.RAW[slug]["short"])))
+    prefix = "Other formats: " if current else "Convert a different format: "
+    return '<p class="sizelinks">%s%s</p>' % (prefix, "".join(parts))
 
 
 def sizelinks(current_kb=None):
@@ -257,7 +302,7 @@ def check_dist():
     return failures
 
 
-ASSET_NAMES = ("app.js", "style.css")
+ASSET_NAMES = ("app.js", "raw.js", "style.css")
 
 
 def hashed_assets():
@@ -308,44 +353,99 @@ def check_assets(hashed):
     return failures
 
 
-TOOL_MARKER = re.compile(r'id="drop"')
-# The tool's bundle is the three vendor libraries plus the hashed app bundle.
-# The stylesheet is deliberately NOT included: every page needs that one.
-ENGINE_SRC_RE = re.compile(r'<script[^>]+src="/(?:vendor/|assets/app\.)[^"]*"')
+PDF_TOOL_MARKER = re.compile(r'id="drop"')
+RAW_TOOL_MARKER = re.compile(r'id="raw-drop"')
+
+# Two independent engines, one bundle each. The stylesheet is deliberately in
+# neither: every page needs it.
+#   PDF: pdf.js + pdf-lib + JSZip (~941 KB raw / ~314 KB gzipped) + the app bundle
+#   RAW: LibRaw compiled to WebAssembly (~1.0 MB wasm, ~385 KB gzipped) + /assets/raw.js
+PDF_ENGINE_RE = re.compile(r'<script[^>]+src="/(?:vendor/(?:pdf\.min|pdf-lib\.min|jszip\.min)\.js|assets/app\.)[^"]*"')
+RAW_ENGINE_RE = re.compile(r'<script[^>]+src="/(?:vendor/rawconvert/|assets/raw\.)[^"]*"')
+
+
+def engine_scope_problems(rel, doc):
+    """Pure check over one page, so the gate and its regression tests share it.
+
+    A page must load an engine exactly when it renders that engine's tool. Both
+    directions cost real money: shipping the PDF bundle to a text page wastes
+    ~314 KB gzipped per visitor, and a RAW page that forgets the WASM is simply
+    broken. With two engines the old two-way check is not enough either, since a
+    page could load the wrong one and still pass.
+    """
+    problems = []
+    want_pdf = bool(PDF_TOOL_MARKER.search(doc))
+    want_raw = bool(RAW_TOOL_MARKER.search(doc))
+    got_pdf = bool(PDF_ENGINE_RE.search(doc))
+    got_raw = bool(RAW_ENGINE_RE.search(doc))
+
+    if want_pdf and not got_pdf:
+        problems.append("%s: renders the PDF tool but loads no PDF engine" % rel)
+    if got_pdf and not want_pdf:
+        problems.append("%s: loads the PDF engine but renders no PDF tool" % rel)
+    if want_raw and not got_raw:
+        problems.append("%s: renders the RAW tool but loads no RAW engine" % rel)
+    if got_raw and not want_raw:
+        problems.append("%s: loads the RAW engine but renders no RAW tool" % rel)
+    return problems
 
 
 def check_engine_scope():
-    """A page loads the PDF engine exactly when it renders the tool. Shipping
-    pdf.js, pdf-lib and JSZip to /how-it-works/ and /privacy/ costs a first-time
-    visitor ~314 KB gzipped to parse code that returns at once, and the mirror
-    mistake (a tool page with no engine) breaks the site outright. The harness
-    drives the engine itself and is exempt."""
+    """The harness drives both engines itself and is exempt."""
     failures = []
     for path in sorted(DIST.rglob("*.html")):
         rel = path.relative_to(DIST).as_posix()
         if rel.startswith("tests/"):
             continue
-        doc = path.read_text(encoding="utf-8")
-        has_tool = bool(TOOL_MARKER.search(doc))
-        has_engine = bool(ENGINE_SRC_RE.search(doc))
-        if has_tool and not has_engine:
-            failures.append("%s: renders the tool but loads no engine" % rel)
-        if has_engine and not has_tool:
-            failures.append("%s: loads the engine but renders no tool" % rel)
+        failures.extend(engine_scope_problems(rel, path.read_text(encoding="utf-8")))
     return failures
 
 
-def scripts(with_tool=True):
-    # defer keeps the four files executing in document order while freeing the
-    # parser to finish the DOM first; app.js only reads the page, so it still
-    # runs before DOMContentLoaded.
-    #
-    # Pages that render no tool must not pull in the engine: pdf.js, pdf-lib and
-    # JSZip are 941 KB raw / ~314 KB gzipped, and on /how-it-works/ and /privacy/
-    # app.js returns immediately at its `if (!$('drop')) return;` guard, so every
-    # byte of that download and parse was wasted on a plain text page.
-    if not with_tool:
+# Files each engine needs at runtime. The RAW engine is loaded by JavaScript
+# (the worker does importScripts(coreUrl) and resolves the .wasm through
+# wasmUrl), so none of it appears as a <script src> in the HTML and the scope
+# gate above cannot see it. Without this check, a page could be shipped with the
+# engine directory missing and the build would still report success.
+PDF_ENGINE_FILES = ("pdf.min.js", "pdf-lib.min.js", "jszip.min.js", "pdf.worker.min.js")
+RAW_ENGINE_FILES = ("index.js", "worker-client.js", "worker-bridge.js", "worker.js",
+                    "rawconvert-core.js", "rawconvert-core.wasm")
+
+
+def check_engine_files():
+    failures = []
+    docs = [(p.relative_to(DIST).as_posix(), p.read_text(encoding="utf-8"))
+            for p in sorted(DIST.rglob("*.html"))
+            if not p.relative_to(DIST).as_posix().startswith("tests/")]
+    for marker, folder, names in (
+            (PDF_TOOL_MARKER, "vendor", PDF_ENGINE_FILES),
+            (RAW_TOOL_MARKER, "vendor/rawconvert", RAW_ENGINE_FILES)):
+        if not any(marker.search(doc) for _, doc in docs):
+            continue
+        for name in names:
+            if not (DIST / folder / name).exists():
+                failures.append("dist/%s/%s is missing but pages rendering that tool exist"
+                                % (folder, name))
+    return failures
+
+
+def scripts(kind="pdf"):
+    """kind is "pdf", "raw" or "none" — which engine bundle this page needs.
+
+    defer keeps the files executing in document order while freeing the parser to
+    finish the DOM first; the controllers only read the page, so they still run
+    before DOMContentLoaded.
+
+    Pages that render no tool must not pull in an engine. The PDF bundle is
+    941 KB raw / ~314 KB gzipped and the RAW engine another ~385 KB gzipped, and
+    on a text page each controller would return at once from its own guard — so
+    every byte of that download and parse would be wasted.
+    """
+    if kind == "none":
         return '</body>\n</html>\n'
+    if kind == "raw":
+        # The LibRaw WASM is fetched by the worker at runtime, not by a tag here.
+        return ('  <script defer src="/assets/raw.js"></script>\n'
+                '</body>\n</html>\n')
     return ('  <script defer src="/vendor/pdf.min.js"></script>\n'
             '  <script defer src="/vendor/pdf-lib.min.js"></script>\n'
             '  <script defer src="/vendor/jszip.min.js"></script>\n'
@@ -353,9 +453,9 @@ def scripts(with_tool=True):
             '</body>\n</html>\n')
 
 
-def page(title, desc, page_url, ld_objs, body_attr, inner, with_tool=True):
+def page(title, desc, page_url, ld_objs, body_attr, inner, kind="pdf"):
     return (head(title, desc, page_url, ld_objs, body_attr)
-            + inner + "\n" + footer() + "\n" + scripts(with_tool))
+            + inner + "\n" + footer() + "\n" + scripts(kind))
 
 
 def prose_page(h1, lede, sections, note_html):
@@ -375,16 +475,72 @@ def prose_page(h1, lede, sections, note_html):
             '  </div>\n') % (esc(h1), esc(lede), secs, note_html)
 
 
+MANIFEST_NAME = ".build-manifest.json"
+
+
+def produced_set(written, hashed):
+    """Everything this build writes into dist, as dist-relative paths."""
+    files = set(written)
+    files.update("assets/%s" % name for name in hashed.values())
+    for item in VENDOR.rglob("*"):
+        if item.is_file():
+            files.add("vendor/" + item.relative_to(VENDOR).as_posix())
+    return files
+
+
+def clean_stale(produced):
+    """Remove files a previous build wrote that this one did not.
+
+    Wiping dist/ would be simpler, but it deletes the whole tree every time and
+    a stale page would otherwise stay live forever - the asset gate only covers
+    dist/assets. Comparing against the previous manifest removes exactly the
+    leftovers and nothing else."""
+    manifest = DIST / MANIFEST_NAME
+    previous = set()
+    if manifest.exists():
+        try:
+            previous = set(json.loads(manifest.read_text(encoding="utf-8")))
+        except (ValueError, OSError):
+            previous = set()
+
+    removed = []
+    for rel in sorted(previous - produced):
+        path = DIST / rel
+        if path.is_file():
+            path.unlink()
+            removed.append(rel)
+
+    # Drop directories the removals left empty, shallowest last.
+    for path in sorted((p for p in DIST.rglob("*") if p.is_dir()),
+                       key=lambda p: len(p.parts), reverse=True):
+        try:
+            path.rmdir()
+        except OSError:
+            pass
+
+    manifest.write_text(json.dumps(sorted(produced), indent=1), encoding="utf-8")
+    return removed
+
+
 def build():
     failures = []
-    if DIST.exists():
-        shutil.rmtree(DIST)
-    DIST.mkdir(parents=True)
+    # dist/ is not wiped. A recursive delete of the whole tree is a bulk delete
+    # of every page and vendored file, and it is also unnecessary: this build
+    # overwrites everything it produces, so the only thing left to do is remove
+    # what a previous build left behind (see clean_stale). That keeps the number
+    # of deletions per build small enough to see in a diff.
+    DIST.mkdir(parents=True, exist_ok=True)
     hashed = hashed_assets()
     write_assets(hashed)
-    (DIST / "vendor").mkdir()
-    for f in VENDOR.glob("*.js"):
-        shutil.copy(f, DIST / "vendor" / f.name)
+    vendor_out = DIST / "vendor"
+    vendor_out.mkdir(exist_ok=True)
+    # Copy the whole vendor tree, not just the top-level files: the RAW engine
+    # is a directory of its own (glue + .wasm + worker + client).
+    for item in sorted(VENDOR.iterdir()):
+        if item.is_dir():
+            shutil.copytree(item, vendor_out / item.name, dirs_exist_ok=True)
+        else:
+            shutil.copy(item, vendor_out / item.name)
 
     written = []
     html_pages = []
@@ -457,6 +613,33 @@ def build():
             "%s Online — Free & Unlimited | %s" % (c["h1"], BRAND),
             c["meta_desc"], url, ld, ' data-target-kb="%d"' % kb, body))
 
+    # ---- RAW to JPG family ----
+    # Same page shape as the size pages, different engine: these load the LibRaw
+    # WASM bundle through /assets/raw.js instead of the PDF libraries.
+    for slug in copy.RAW_ORDER:
+        c = copy.RAW[slug]
+        url = "/%s/" % slug
+        why = "\n".join('      <p>%s</p>' % esc(p) for p in c["why"])
+        body = (
+            '  <section class="hero wrap">\n'
+            '    <h1>%s</h1>\n'
+            '    <p class="lede">%s</p>\n'
+            '  </section>\n'
+            '  <div class="wrap">\n'
+            '%s\n'
+            '%s\n'
+            '    <section class="content">\n'
+            '      <h2>%s</h2>\n%s\n'
+            '      <div class="note"><b>Nothing is uploaded.</b> The RAW file is decoded in this tab by '
+            'LibRaw compiled to WebAssembly — no upload step, no server copy, no account.</div>\n'
+            '    </section>\n'
+            '%s\n'
+            '  </div>\n') % (esc(c["h1"]), esc(c["lead"]), raw_tool_block(), rawlinks(slug),
+                             esc(c["why_title"]), why,
+                             faq_section("Questions about converting %s" % c["short"], c["faq"]))
+        emit("%s/index.html" % slug, page(
+            c["title"], c["meta_desc"], url, [faq_ld(c["faq"])], "", body, kind="raw"))
+
     # ---- how it works ----
     hw = copy.HOW
     emit("how-it-works/index.html", page(
@@ -465,7 +648,7 @@ def build():
         prose_page(hw["h1"], hw["lede"], hw["sections"],
                    'Try it yourself: drop a file on the <a href="/">homepage</a> '
                    'and watch the badge — the numbers it reports are real.'),
-        with_tool=False))
+        kind="none"))
 
     # ---- privacy ----
     pv = copy.PRIVACY
@@ -474,7 +657,7 @@ def build():
         prose_page(pv["h1"], pv["lede"], pv["sections"],
                    'The claim is checkable: open DevTools → Network, drop a file, '
                    'and confirm no request carries it. Start on the <a href="/">homepage</a>.'),
-        with_tool=False))
+        kind="none"))
 
     # ---- about ----
     # AdSense reviewers look for an About page alongside the privacy policy, and
@@ -485,7 +668,7 @@ def build():
         prose_page(ab["h1"], ab["lede"], ab["sections"],
                    'Ready to try it? Drop a PDF on the <a href="/">homepage</a>, or start from the '
                    'exact target your form asks for with the <a href="/compress-pdf-to-300kb/">size pages</a>.'),
-        with_tool=False))
+        kind="none"))
 
     # ---- terms of use ----
     tm = copy.TERMS
@@ -494,7 +677,7 @@ def build():
         prose_page(tm["h1"], tm["lede"], tm["sections"],
                    'These terms cover use of the site only. Your files stay yours and never leave '
                    'your device — see <a href="/privacy/">Privacy</a>.'),
-        with_tool=False))
+        kind="none"))
 
     # ---- robots + sitemap ----
     # A browser requests /favicon.ico on a cold load even though every page
@@ -516,6 +699,7 @@ def build():
     if BASE_URL:
         robots += "\nSitemap: %s/sitemap.xml\n" % BASE_URL
         urls = ["/"] + ["/%s/" % slug_of(kb) for kb in SIZE_ORDER] + \
+               ["/%s/" % slug for slug in copy.RAW_ORDER] + \
                ["/how-it-works/", "/about/", "/privacy/", "/terms/"]
         today = datetime.date.today().isoformat()
         xml = ['<?xml version="1.0" encoding="UTF-8"?>',
@@ -528,9 +712,11 @@ def build():
     (DIST / "robots.txt").write_text(robots, encoding="utf-8")
     written.append("robots.txt")
 
+    removed = clean_stale(produced_set(written, hashed))
     version_asset_refs(hashed)
     failures.extend(check_assets(hashed))
     failures.extend(check_engine_scope())
+    failures.extend(check_engine_files())
     failures.extend(check_dist())
 
     if failures:
@@ -539,13 +725,17 @@ def build():
             print("  -", f)
         sys.exit(1)
 
-    expected_html = 1 + len(SIZE_ORDER) + 4
+    expected_html = 1 + len(SIZE_ORDER) + len(copy.RAW_ORDER) + 4
     print("BUILD OK: %d HTML pages (%d expected), %d files total"
           % (len(html_pages), expected_html, len(written)))
     print("FAQ structured check (JSON-LD == visible details): PASS")
     print("Link + title/description uniqueness: PASS")
-    print("Engine scope (only tool pages load the PDF engine): PASS")
+    print("Engine scope (PDF pages get the PDF engine, RAW pages the WASM, text pages neither): PASS")
+    print("Engine files present for every tool page: PASS")
     print("Assets content-hashed: %s" % ", ".join(sorted(hashed.values())))
+    if removed:
+        print("Removed %d stale file(s) from a previous build: %s"
+              % (len(removed), ", ".join(removed[:6])))
     if not BASE_URL:
         print("NOTE: BASE_URL not set — canonical/OG/sitemap skipped (set after domain purchase).")
 

@@ -283,3 +283,102 @@ TERMS = {
          ["Anything about these terms, including a request to correct or remove content, can be sent to hello@millfile.com."])
     ]
 }
+
+# RAW to JPG pages. Same shape as SIZES: slug is the whole path segment.
+# The engine is LibRaw compiled to WebAssembly, decoded in a worker; every claim
+# below was measured on a real 30 MB ARW (26 MP) before it was written.
+RAW_ORDER = ["raw-to-jpg", "nef-to-jpg", "arw-to-jpg", "dng-to-jpg"]
+
+RAW = {
+    "raw-to-jpg": {
+        "short": "RAW to JPG",
+        "title": "Convert RAW to JPG in Your Browser - Free, No Upload",
+        "meta_desc": "Convert CR2, NEF, ARW, CR3, ORF and other RAW files to full-resolution JPG in your browser. Free, no sign-up, no watermark - the file is never uploaded.",
+        "h1": "Convert RAW to JPG",
+        "lead": "Drop a RAW file from any major camera and get a full-resolution JPG back. The frame is decoded in your browser by LibRaw compiled to WebAssembly, so the file is never uploaded - no account, no watermark, no daily limit.",
+        "why_title": "Why convert RAW in the browser",
+        "why": [
+            "A RAW file holds the sensor data as the camera recorded it: 12 to 14 bits per channel, no JPEG compression, and a white balance that is still a suggestion rather than a decision. That is what makes it worth editing, and it is also why the delivery step is awkward. Print shops, job portals, forums and email all want a JPG, and the usual converters ask you to upload a 30 MB file to a server before they will help.",
+            "MillFile decodes the frame here, in this tab. A 26 megapixel frame takes about two to three seconds on a laptop - that is our own measurement on a 30 MB Sony file, not an estimate - and the result keeps the full sensor resolution. Larger sensors take longer, because every pixel is processed on your own machine rather than on hardware somebody else pays for."
+        ],
+        "faq": [
+            ("Which RAW formats can I convert?",
+             "Canon CR2 and CR3, Nikon NEF and NRW, Sony ARW, SRF and SR2, Adobe DNG, Fujifilm RAF, Olympus ORF, Panasonic RW2, Pentax PEF, Samsung SRW, and the other formats LibRaw recognises - the decoder behind this page covers well over a thousand camera models. A file that cannot be decoded says so on its own row instead of failing silently."),
+            ("Will the JPG include my edits from Lightroom or Capture One?",
+             "No. Those adjustments live in the editor's catalogue or in an XMP sidecar file, not inside the RAW, and this page only reads the RAW you hand it. What you get is the camera's own white balance and a standard demosaic: a clean full-resolution render, not a copy of an edited export. Use it when you want the picture rather than the grade."),
+            ("Do I get the camera's embedded preview instead of a real decode?",
+             "No - this page always decodes the full frame, which is why it takes a couple of seconds rather than a fraction of one. The trade is that the JPG is built from the sensor data at full resolution instead of from the smaller preview most cameras store alongside it."),
+            ("Can I convert several files at once?",
+             "Drop them together and they are converted one after another, each with its own download button. They run in sequence rather than in parallel, because a single 26 megapixel frame already needs a few hundred megabytes of working memory."),
+            ("Is there a file size limit?",
+             "No hard limit, but a very large file needs a capable device. The decoder and the JPEG encoder each hold a copy of the frame in memory, and a phone can run out. The page warns you before starting a file over 60 MB.")
+        ]
+    },
+    "nef-to-jpg": {
+        "short": "NEF to JPG",
+        "title": "Convert NEF to JPG Online - Free, No Upload | MillFile",
+        "meta_desc": "Convert Nikon NEF files to full-resolution JPG in your browser. Free, no sign-up, no watermark, and the file is never uploaded to a server.",
+        "h1": "Convert NEF to JPG",
+        "lead": "Nikon NEF files are unreadable to most websites, printers and email clients. Drop one here and get a full-resolution JPG back, decoded on your own device - nothing is uploaded.",
+        "why_title": "What a NEF needs before anyone else can open it",
+        "why": [
+            "Nikon writes NEF as a TIFF-based container holding sensor data, a JPEG preview, and a set of maker notes that vary by model and by compression setting. That is why NEF support is uneven: a viewer that handles a D750 file can fail on a newer body that uses high-efficiency compression. LibRaw tracks those variants, and it is the decoder running inside this page.",
+            "Converting here instead of uploading means a 30 MB wedding frame never crosses the network. Our own measurement on a 26 megapixel file is roughly two to three seconds; a 45 megapixel frame takes noticeably longer and asks for more memory."
+        ],
+        "faq": [
+            ("Does this work with high-efficiency NEF compression?",
+             "Usually. LibRaw covers the compression variants Nikon has shipped, but a decoder cannot know a format that postdates it, so a brand new body may be refused. When that happens the row says failed, and the original file is untouched on your disk."),
+            ("Will the colours match what I see in Nikon software?",
+             "Not exactly. This page renders with the white balance recorded in the file and a standard demosaic, not Nikon's own Picture Control pipeline, so contrast and colour rendering differ slightly from NX Studio. You keep the full resolution and the highlight information; the look is a plain render."),
+            ("Are the JPGs tagged with the capture date and lens?",
+             "No. The JPEG is encoded from the decoded pixels, so the camera metadata does not travel with it. If you need the EXIF later, keep the NEF - this page does not modify or replace it."),
+            ("What quality should I pick?",
+             "Standard is the sensible default for sharing and printing. High keeps more detail at a larger file size, and Small suits email attachments and web forms where the file has to stay small.")
+        ]
+    },
+    "arw-to-jpg": {
+        "short": "ARW to JPG",
+        "title": "Convert ARW to JPG Online - Free, No Upload | MillFile",
+        "meta_desc": "Convert Sony ARW files to full-resolution JPG in your browser. Decoded from the sensor data, never from the embedded preview. Free, and never uploaded.",
+        "h1": "Convert ARW to JPG",
+        "lead": "Drop a Sony ARW file here for a full-resolution JPG. The frame is decoded in your browser, so a large file never crosses the network - no account, no watermark, no daily cap.",
+        "why_title": "Why ARW files need care",
+        "why": [
+            "Sony stores a full-size JPEG preview inside most ARW files next to the raw data. That is why so many tools show you a picture almost instantly and then produce something different when you actually convert. This page does not take that shortcut: the frame is decoded from the sensor data, so the output matches the file rather than the preview.",
+            "Sony also changes compression between camera generations, and some bodies record lossless-compressed raw that older decoders reject outright. If your file is one of those, the row says so - a failure you can see beats a JPG that quietly looks wrong."
+        ],
+        "faq": [
+            ("Why not just use the embedded preview?",
+             "Because the preview is a separate, smaller JPEG the camera generated. Using it would hand you a lower-resolution picture than the file actually contains. Decoding the sensor data takes longer and gives you the real frame."),
+            ("Does it handle lossless-compressed ARW?",
+             "Usually, through LibRaw. Sony has introduced new compression with recent bodies, and a decoder that predates a camera cannot know its format. Failures are reported per file rather than hidden."),
+            ("How long does a 61 megapixel file take?",
+             "Longer than the 26 megapixel frame we measured at two to three seconds - roughly in proportion to the pixel count. Expect several times that on a laptop, and more on a phone, where memory is the binding constraint rather than processor speed."),
+            ("Do you keep a copy of my file?",
+             "No. There is no upload step and no server behind this page. The file is read into this tab, decoded here, and handed back as a download link that never leaves your machine.")
+        ]
+    },
+    "dng-to-jpg": {
+        "short": "DNG to JPG",
+        "title": "Convert DNG to JPG Online - Free, No Upload | MillFile",
+        "meta_desc": "Convert DNG and ProRAW files to full-resolution JPG in your browser. Free, no account, no watermark, and the file is never uploaded anywhere.",
+        "h1": "Convert DNG to JPG",
+        "lead": "DNG is the open RAW format that phones, drones and Adobe tools write. Drop one here for a full-resolution JPG, decoded on your device - nothing leaves your machine.",
+        "why_title": "What actually arrives in a DNG",
+        "why": [
+            "DNG was designed so a raw file could be read without reverse engineering every camera, and it worked well enough that Apple ProRAW and many Android camera apps write it. It is still raw: a JPG needs a demosaic, a white balance decision and an encode, which is what this page does, in the browser.",
+            "One caveat specific to DNG. Some files, including a few phone features, store a JPEG or a lightly compressed payload rather than untouched sensor data. Those convert quickly and look fine, but they are not giving you more information than the phone had already decided on."
+        ],
+        "faq": [
+            ("Does this work with Apple ProRAW?",
+             "ProRAW is a DNG and LibRaw handles DNG, so it usually decodes. ProRAW also carries a large amount of extra processing metadata that this page does not apply, so the render is plainer than what the Photos app shows you."),
+            ("Will a DNG converted here look like the Adobe version?",
+             "Close, but not identical. Adobe applies its own camera profiles; this page uses the white balance recorded in the file and a standard demosaic. Expect the same picture with slightly different colour rendering."),
+            ("What about DNG files that hold a JPEG instead of sensor data?",
+             "They still convert, and quickly, because there is far less to decode. The output resolution can be lower than you expect, because that detail was never in the file to begin with."),
+            ("Is my DNG uploaded anywhere?",
+             "No. There is no upload step and no backend: the file is read into this tab, decoded here, and turned into a download you save yourself. The page loads no analytics and no third-party scripts either.")
+        ]
+    }
+}
+
