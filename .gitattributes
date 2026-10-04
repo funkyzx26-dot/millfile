@@ -1,0 +1,6 @@
+# The vendored libraries in vendor/ are verified by SHA-256 against their
+# published upstream releases (see THIRD-PARTY.md). Any line-ending conversion
+# would change those bytes on checkout and invalidate the hashes, so git is told
+# to leave every file exactly as it is. Build artifacts are content-hashed too,
+# which is the same argument applied to everything else in the tree.
+* -text

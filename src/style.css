@@ -1,0 +1,132 @@
+/* MillFile — light theme, system fonts, zero external assets */
+:root {
+  --bg: #f7f7f5;
+  --panel: #ffffff;
+  --ink: #1c1f23;
+  --muted: #5f666e;
+  --line: #e3e4e1;
+  --accent: #0f7b4f;
+  --accent-ink: #ffffff;
+  --warn: #8a5a0e;
+  --err: #b3261e;
+  --ok-bg: #e7f4ec;
+  --warn-bg: #faf1de;
+  --err-bg: #fbeae9;
+  --radius: 10px;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 0 20px; }
+
+/* header / footer */
+.site-head { border-bottom: 1px solid var(--line); background: var(--panel); }
+.site-head .wrap { display: flex; align-items: center; gap: 22px; min-height: 56px; }
+.brand { font-weight: 700; font-size: 18px; color: var(--ink); }
+.brand:hover { text-decoration: none; }
+.brand span { color: var(--accent); }
+.nav { margin-left: auto; display: flex; gap: 18px; font-size: 14.5px; }
+.site-foot { border-top: 1px solid var(--line); background: var(--panel); margin-top: 56px; padding: 28px 0 34px; font-size: 14px; color: var(--muted); }
+.site-foot .cols { display: flex; flex-wrap: wrap; gap: 32px; }
+.site-foot ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.site-foot li { margin: 4px 0; }
+.legal { margin-top: 20px; font-size: 13px; }
+
+/* hero */
+.hero { padding: 44px 0 8px; }
+.hero h1 { font-size: 32px; line-height: 1.2; margin: 0 0 10px; letter-spacing: -0.01em; }
+.hero .sub { font-size: 17.5px; color: var(--muted); margin: 0 0 6px; }
+.hero .sub b { color: var(--accent); font-weight: 600; }
+
+/* tool */
+.tool { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; margin: 22px 0 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.chip {
+  border: 1px solid var(--line); background: #fbfbfa; color: var(--ink);
+  border-radius: 999px; padding: 6px 14px; font-size: 14.5px; cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+.chip--on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.tool__target { margin: 0 0 12px; font-size: 14.5px; color: var(--muted); }
+.tool__target strong { color: var(--ink); }
+.drop {
+  display: block;
+  position: relative;
+  border: 2px dashed #c9cbc7; border-radius: var(--radius); background: #fcfcfb;
+  padding: 34px 18px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+}
+.drop:hover, .drop--on, .drop:focus-within { border-color: var(--accent); background: var(--ok-bg); }
+.drop strong { display: block; font-size: 18px; margin-bottom: 4px; }
+.drop .hint { display: block; color: var(--muted); font-size: 14px; margin: 0; }
+/* The labeled input is the keyboard path into the picker: hidden visually, but
+   focusable, and :focus-within above draws the ring on the drop zone. */
+.file-input {
+  position: absolute; width: 1px; height: 1px; opacity: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+.status { min-height: 22px; margin: 12px 0 4px; font-size: 14.5px; color: var(--muted); }
+.status--ok { color: var(--accent); }
+.status--warn { color: var(--warn); }
+.queue { list-style: none; margin: 8px 0 0; padding: 0; }
+.row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; background: #fdfdfc;
+}
+.row__name { flex: 1 1 220px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 14.5px; }
+.row__sizes { color: var(--muted); font-size: 14px; }
+.row__arrow { color: var(--line); }
+.row__badge { font-size: 13px; font-weight: 700; border-radius: 999px; padding: 3px 10px; }
+.row__badge--ok { background: var(--ok-bg); color: var(--accent); }
+.row__badge--warn { background: var(--warn-bg); color: var(--warn); }
+.row__badge--err { background: var(--err-bg); color: var(--err); }
+.btn {
+  border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink);
+  font-size: 15px; font-weight: 600; padding: 10px 18px; cursor: pointer;
+}
+.btn:hover { filter: brightness(1.06); }
+.btn:disabled { opacity: .6; cursor: default; }
+.btn--sm { padding: 6px 14px; font-size: 13.5px; }
+#download-all { margin-top: 10px; }
+
+/* content */
+.content { padding: 6px 0 8px; }
+.content h2 { font-size: 22px; margin: 30px 0 10px; letter-spacing: -0.01em; }
+.content h3 { font-size: 17px; margin: 22px 0 8px; }
+.content p { margin: 0 0 12px; }
+.content ul, .content ol { margin: 0 0 14px; padding-left: 22px; }
+.content li { margin: 5px 0; }
+.lede { font-size: 17px; color: #33383e; }
+.steps { counter-reset: st; list-style: none; padding: 0; display: grid; gap: 12px; }
+.steps li { counter-increment: st; position: relative; padding: 14px 16px 14px 52px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); margin: 0; }
+.steps li::before {
+  content: counter(st); position: absolute; left: 14px; top: 14px;
+  width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff;
+  font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.steps li b { display: block; margin-bottom: 2px; }
+.note {
+  background: var(--ok-bg); border: 1px solid #cfe7d9; border-radius: var(--radius);
+  padding: 14px 16px; margin: 18px 0; font-size: 15px;
+}
+.faq details {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  margin-bottom: 8px; padding: 12px 16px;
+}
+.faq summary { cursor: pointer; font-weight: 600; font-size: 15.5px; }
+.faq p { margin: 10px 0 2px; color: #3a4046; font-size: 15px; }
+.sizelinks { font-size: 14.5px; color: var(--muted); }
+.sizelinks a { margin-right: 10px; white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .hero h1 { font-size: 26px; }
+  .tool { padding: 16px; }
+  .nav { gap: 12px; font-size: 13.5px; }
+  .row { gap: 8px; }
+}

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>MillFile test harness</title>
+  <!-- build.py rewrites the two /assets references below to their hashed names -->
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <section class="hero wrap">
+    <h1>Test harness</h1>
+    <p class="lede">Auto-runs on load. Test A: engine directly (lossless path).
+    Test B: the real homepage in an iframe, actual drop event, UI badge read back.
+    Test C: raster path forced with a 100 KB target the lossless pass cannot reach.</p>
+  </section>
+  <div class="wrap">
+    <section class="tool">
+      <p class="status" id="hstatus" role="status">Starting…</p>
+      <button class="btn" type="button" id="run">Run again</button>
+      <pre id="hout" style="white-space:pre-wrap;font-size:13px"></pre>
+    </section>
+  </div>
+  <iframe id="frame" src="/" style="position:absolute;left:-10000px;width:900px;height:1200px"></iframe>
+  <script defer src="/vendor/pdf.min.js"></script>
+  <script defer src="/vendor/pdf-lib.min.js"></script>
+  <script defer src="/vendor/jszip.min.js"></script>
+  <script defer src="/assets/app.js"></script>
+  <script>
+  (function () {
+    var out = document.getElementById('hout');
+    var st = document.getElementById('hstatus');
+    var TARGET = 300 * 1024;
+    function log(s) { out.textContent += s + '\n'; }
+
+    // Fat PDF (uncompressed save) — runs in whatever window you hand it, so the
+    // UI test can build its file entirely inside the iframe realm.
+    async function makeFatPdf(win) {
+      var PDFLib = win.PDFLib;
+      var doc = await PDFLib.PDFDocument.create();
+      var font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+      var words = ['permit','ledger','canvas','harbor','granite','lantern','meadow',
+                   'cinder','beacon','thicket','willow','copper','summit','quarry',
+                   'anchor','blossom','cobble','drifter','emerald','fathom'];
+      for (var p = 0; p < 3; p++) {
+        var page = doc.addPage([612, 792]);
+        var y = 760;
+        // 3000 lines/page, running well past the page edge — pdf-lib stores
+        // whatever is drawn, viewers clip it, so the raw stream stays fat.
+        for (var i = 0; i < 3000; i++) {
+          var parts = [];
+          for (var w = 0; w < 9; w++) parts.push(words[Math.floor(Math.random() * words.length)]);
+          var line = (i % 52 === 0 ? 'Section ' + (p + 1) + '.' + Math.floor(i / 52) + ' ' : '') + parts.join(' ');
+          page.drawText(line, { x: 40, y: y, size: 9, font: font, color: PDFLib.rgb(0, 0, 0) });
+          y -= 13;
+        }
+      }
+      var bytes = await doc.save({ useObjectStreams: false });
+      return new Uint8Array(bytes);
+    }
+
+    function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+    async function testA() {
+      log('--- Test A: engine direct ---');
+      var fat = await makeFatPdf(window);
+      log('source: ' + fat.length + ' bytes (' + Math.round(fat.length / 1024) + ' KB)');
+      if (fat.length < 300 * 1024) return { pass: false, why: 'test pdf too small: ' + fat.length };
+      var t0 = performance.now();
+      var res = await window.MillFile.compressOne(
+        new File([fat], 'engine-test.pdf', { type: 'application/pdf' }), TARGET);
+      var ms = Math.round(performance.now() - t0);
+      log('result: ' + res.bytes.length + ' bytes (' + Math.round(res.bytes.length / 1024) + ' KB)');
+      log('method: ' + res.method + ', reached: ' + res.reached + ', magic: ' +
+          window.MillFile.pdfMagic(res.bytes) + ', ' + ms + ' ms');
+      var rtPages = 0;
+      try {
+        var rt = await pdfjsLib.getDocument({ data: res.bytes.slice(0) }).promise;
+        rtPages = rt.numPages;
+        log('round-trip: pdf.js reopens the result, ' + rtPages + ' pages');
+      } catch (e) {
+        log('round-trip FAILED: ' + (e && e.message || e));
+      }
+      var pass = window.MillFile.pdfMagic(res.bytes) && rtPages === 3 &&
+                 res.reached && res.bytes.length <= 300 * 1024 && res.bytes.length < res.original;
+      return { pass: pass, why: Math.round(fat.length / 1024) + ' KB -> ' +
+          Math.round(res.bytes.length / 1024) + ' KB via ' + res.method + ' in ' + ms + ' ms' };
+    }
+
+    async function testB() {
+      log('--- Test B: real homepage UI, synthetic drop ---');
+      var frame = document.getElementById('frame');
+      var iw = frame.contentWindow, idoc = frame.contentDocument;
+      // app.js is deferred now, so #drop exists in the markup long before its
+      // handlers are attached: wait for the boot announcement, the last line it writes.
+      function booted(d) {
+        if (!d || !d.getElementById('drop')) return false;
+        var st = d.getElementById('status');
+        return !!st && /^Ready/.test(st.textContent || '');
+      }
+      if (!booted(idoc)) {
+        frame.src = '/';
+        for (var w = 0; w < 20 && !booted(idoc); w++) {
+          await sleep(300);
+          iw = frame.contentWindow; idoc = frame.contentDocument;
+        }
+      }
+      if (!booted(idoc)) return { pass: false, why: 'iframe did not load homepage' };
+      log('pdf-lib realm: iframe === parent: ' + (iw.PDFLib === window.PDFLib) +
+          ', iframe PDFLib defined: ' + (typeof iw.PDFLib));
+      var fat = await makeFatPdf(window);
+      log('ui file: ' + fat.length + ' bytes');
+      var file = new File([fat], 'ui-test.pdf', { type: 'application/pdf' });
+      var dt = new DataTransfer();
+      dt.items.add(file);
+      var ev;
+      try {
+        ev = new iw.DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true });
+      } catch (e) {
+        ev = new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true });
+      }
+      idoc.getElementById('drop').dispatchEvent(ev);
+      var status = '', badge = '', dlVisible = false, waited = 0;
+      while (waited < 120000) {
+        await sleep(400); waited += 400;
+        status = (idoc.getElementById('status') || {}).textContent || '';
+        var row = idoc.querySelector('#queue .row');
+        badge = row ? ((row.querySelector('.row__badge') || {}).textContent || '') : '';
+        var dl = row ? row.querySelector('.row__dl') : null;
+        dlVisible = !!dl && !dl.hidden;
+        if (/^Done|failed|not a PDF|password/.test(status)) break;
+      }
+      log('status: ' + status);
+      log('badge:  ' + badge + ', download button visible: ' + dlVisible);
+      var rows = idoc.querySelectorAll('#queue .row').length;
+      log('queue rows: ' + rows);
+      var pass = rows === 1 && dlVisible && /smaller|under target|min /.test(badge) && /Done/.test(status);
+      return { pass: pass, why: 'badge="' + badge + '" dl=' + dlVisible + ' rows=' + rows };
+    }
+
+    async function testC() {
+      log('--- Test C: raster path forced (target 100 KB) ---');
+      var fat = await makeFatPdf(window);
+      log('source: ' + fat.length + ' bytes (' + Math.round(fat.length / 1024) + ' KB)');
+      var t0 = performance.now();
+      var res = await window.MillFile.compressOne(
+        new File([fat], 'raster-test.pdf', { type: 'application/pdf' }), 100 * 1024);
+      var ms = Math.round(performance.now() - t0);
+      log('result: ' + res.bytes.length + ' bytes (' + Math.round(res.bytes.length / 1024) + ' KB)');
+      log('method: ' + res.method + ', reached: ' + res.reached + ', magic: ' +
+          window.MillFile.pdfMagic(res.bytes) + ', ' + ms + ' ms');
+      var rtPages = 0;
+      try {
+        var rt = await pdfjsLib.getDocument({ data: res.bytes.slice(0) }).promise;
+        rtPages = rt.numPages;
+        log('round-trip: pdf.js reopens the raster result, ' + rtPages + ' pages');
+      } catch (e) {
+        log('round-trip FAILED: ' + (e && e.message || e));
+      }
+      var pass = res.method === 'raster' && window.MillFile.pdfMagic(res.bytes) && rtPages === 3 &&
+                 res.reached && res.bytes.length <= 100 * 1024 && res.bytes.length < res.original;
+      return { pass: pass, why: Math.round(res.bytes.length / 1024) + ' KB via ' + res.method + ' in ' + ms + ' ms' };
+    }
+
+    async function runAll() {
+      out.textContent = '';
+      document.getElementById('run').disabled = true;
+      var a, b, c;
+      try {
+        st.textContent = 'Test A: engine…';
+        a = await testA();
+      } catch (e) { a = { pass: false, why: 'threw: ' + (e && e.message || e) }; log('A error: ' + (e && e.stack || e)); }
+      log('TEST A: ' + (a.pass ? 'PASS' : 'FAIL') + ' — ' + a.why);
+      try {
+        st.textContent = 'Test B: homepage UI…';
+        b = await testB();
+      } catch (e) { b = { pass: false, why: 'threw: ' + (e && e.message || e) }; log('B error: ' + (e && e.stack || e)); }
+      log('TEST B: ' + (b.pass ? 'PASS' : 'FAIL') + ' — ' + b.why);
+      try {
+        st.textContent = 'Test C: raster path…';
+        c = await testC();
+      } catch (e) { c = { pass: false, why: 'threw: ' + (e && e.message || e) }; log('C error: ' + (e && e.stack || e)); }
+      log('TEST C: ' + (c.pass ? 'PASS' : 'FAIL') + ' — ' + c.why);
+      var all = a.pass && b.pass && c.pass;
+      log('OVERALL: ' + (all ? 'PASS' : 'FAIL'));
+      st.textContent = (all ? 'PASS' : 'FAIL') + ' — A: ' + a.why + ' | B: ' + b.why + ' | C: ' + c.why;
+      st.className = 'status ' + (all ? 'status--ok' : 'status--warn');
+      document.getElementById('run').disabled = false;
+    }
+
+    document.getElementById('run').addEventListener('click', runAll);
+    window.addEventListener('load', function () { setTimeout(runAll, 300); });
+  })();
+  </script>
+</body>
+</html>
