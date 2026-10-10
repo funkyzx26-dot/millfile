@@ -17,6 +17,7 @@ import json
 import pathlib
 import re
 import shutil
+import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent
@@ -587,6 +588,44 @@ def clean_stale(produced):
     return removed
 
 
+# The files whose contents end up in the pages. A change to any of them is a
+# change to every page, which is why one date serves the whole sitemap.
+CONTENT_SOURCES = ("src", "build.py", "vercel.json")
+
+
+def _git(args):
+    try:
+        out = subprocess.run(["git"] + args, cwd=str(ROOT),
+                             capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    stamp = out.stdout.strip()
+    return stamp if re.match(r"^\d{4}-\d{2}-\d{2}$", stamp) else None
+
+
+def content_date():
+    """The date the page content last changed, or None if that cannot be known.
+
+    This used to be datetime.date.today(), which meant every deploy stamped all
+    fifteen pages with the build date. Google's sitemap documentation says it
+    ignores a lastmod that moves on every build, so the field was doing nothing —
+    worse than nothing, since an unreliable lastmod costs trust in the rest of
+    the file. Taking the date of the last commit that touched the sources makes
+    it move only when something actually changed.
+
+    None means "no reliable answer", and the caller then omits lastmod entirely.
+    The fallback is deliberately not today's date or a file mtime: a fresh
+    checkout's mtimes are the checkout time, which is the same lie in different
+    clothes. Google's own guidance is to omit the field rather than guess.
+    """
+    # The last commit that touched the sources. In a shallow clone this can come
+    # back empty even though HEAD is usable, hence the second attempt.
+    return (_git(["log", "-1", "--format=%cs", "--"] + list(CONTENT_SOURCES))
+            or _git(["log", "-1", "--format=%cs"]))
+
+
 def build():
     failures = []
     # dist/ is not wiped. A recursive delete of the whole tree is a bulk delete
@@ -774,11 +813,16 @@ def build():
         urls = ["/"] + ["/%s/" % slug_of(kb) for kb in SIZE_ORDER] + \
                ["/%s/" % slug for slug in copy.RAW_ORDER] + \
                ["/how-it-works/", "/about/", "/privacy/", "/terms/"]
-        today = datetime.date.today().isoformat()
+        # lastmod is omitted rather than guessed when the date is unknown: see
+        # content_date() for why a build-date stamp is worse than no stamp.
+        stamp = content_date()
         xml = ['<?xml version="1.0" encoding="UTF-8"?>',
                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
         for u in urls:
-            xml.append("  <url><loc>%s%s</loc><lastmod>%s</lastmod></url>" % (BASE_URL, u, today))
+            if stamp:
+                xml.append("  <url><loc>%s%s</loc><lastmod>%s</lastmod></url>" % (BASE_URL, u, stamp))
+            else:
+                xml.append("  <url><loc>%s%s</loc></url>" % (BASE_URL, u))
         xml.append("</urlset>")
         (DIST / "sitemap.xml").write_text("\n".join(xml) + "\n", encoding="utf-8")
         written.append("sitemap.xml")
@@ -810,6 +854,10 @@ def build():
     print("Every engine path named by a controller exists in dist/: PASS")
     print("Engine files present for every tool page: PASS")
     print("Assets content-hashed: %s" % ", ".join(sorted(hashed.values())))
+    # Printed because the fallback is silent otherwise: if a build environment has
+    # no usable git metadata the sitemap simply loses lastmod, and this line is
+    # how that becomes visible in the deploy log instead of being guessed at.
+    print("Sitemap lastmod: %s" % (content_date() or "omitted - no usable git metadata"))
     if removed:
         print("Removed %d stale file(s) from a previous build: %s"
               % (len(removed), ", ".join(removed[:6])))
