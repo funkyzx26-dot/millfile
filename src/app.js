@@ -1,14 +1,64 @@
 /* MillFile engine + UI — pure frontend, files never leave the device.
-   Requires: /vendor/pdf.min.js (pdf.js 3.x, global pdfjsLib),
-             /vendor/pdf-lib.min.js (global PDFLib),
-             /vendor/jszip.min.js (global JSZip, optional). */
+   The PDF libraries (pdf.js, pdf-lib, JSZip) are fetched on first use rather
+   than on page load; see ensureEngine() below. */
 (function () {
   'use strict';
 
-  var pdfjsLib = window.pdfjsLib;
-  var PDFLib = window.PDFLib;
-  if (pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.js';
+  /* ---------------- the engine, fetched on demand ----------------
+     The bundle is ~921 KB raw and ~314 KB gzipped, and it used to be a <script>
+     tag on every tool page, so a visitor who only read the page paid for all of
+     it. Now the tags are injected on the first file, which is also when the
+     worker starts being needed. Nothing below touches pdfjsLib or PDFLib until
+     ensureEngine() resolves — that is why both start as null. */
+  var ENGINE_FILES = ['/vendor/pdf.min.js',
+                      '/vendor/pdf-lib.min.js',
+                      '/vendor/jszip.min.js'];
+  var pdfjsLib = null, PDFLib = null;
+  var engineReady = null;
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error('could not load ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function adoptEngine() {
+    pdfjsLib = window.pdfjsLib || null;
+    PDFLib = window.PDFLib || null;
+    if (!pdfjsLib || !PDFLib) throw new Error('the PDF engine did not initialise');
+    if (pdfjsLib.GlobalWorkerOptions) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.js';
+    }
+  }
+
+  function ensureEngine() {
+    if (engineReady) return engineReady;
+    // Libraries already on the page: nothing to fetch, just adopt them. That is
+    // how tests/harness.html drives the engine directly, and how the regression
+    // suite stands in for it — so the loader must not insist on a download.
+    if (window.pdfjsLib && window.PDFLib) {
+      engineReady = Promise.resolve().then(adoptEngine);
+      return engineReady;
+    }
+    // Serial rather than parallel: the three do not depend on each other, but
+    // loading one at a time makes the failing file obvious when something 404s.
+    engineReady = ENGINE_FILES.reduce(function (chain, src) {
+      return chain.then(function () { return loadScript(src); });
+    }, Promise.resolve()).then(adoptEngine).catch(function (err) {
+      engineReady = null;   // a later attempt should be able to start over
+      throw err;
+    });
+    return engineReady;
+  }
+
+  // Begin the download as soon as the visitor shows intent, so the wait overlaps
+  // with the file picker or the drag instead of following it.
+  function warmEngine() {
+    if (!engineReady) ensureEngine().catch(function () { /* the real attempt reports */ });
   }
 
   /* ---------------- compression core ---------------- */
@@ -209,6 +259,10 @@
   }
 
   async function compressOne(file, targetBytes, onProgress) {
+    // Self-contained: the queue awaits this too, but the regression tests call
+    // compressOne() directly, so the guarantee belongs here rather than only in
+    // the caller.
+    await ensureEngine();
     var buf = new Uint8Array(await file.arrayBuffer());
     if (!pdfMagic(buf)) throw new Error('not-pdf');
     if (buf.length <= targetBytes) {
@@ -373,6 +427,21 @@
     if (state.busy) return;
     state.busy = true;
     $('download-all').hidden = true;
+    // The engine is not on the page yet. Fail here, before any row looks like it
+    // is working, so a network problem reads as one message rather than one
+    // error per file.
+    if (state.queue.some(function (it) { return !it.done; })) {
+      try {
+        announce('Loading the PDF engine…');
+        await ensureEngine();
+      } catch (err) {
+        state.busy = false;
+        announce('The PDF engine could not load (' +
+          (err && err.message ? err.message : err) +
+          '). Check your connection, then drop the file again.', 'warn');
+        return;
+      }
+    }
     var failed = 0, broken = 0, hitFloor = 0;
     var doneTargets = {}, missTargets = {};
     for (var i = 0; i < state.queue.length; i++) {
@@ -451,8 +520,15 @@
   // #drop is the <label> for #file-input, so click and keyboard activation are
   // native; a JS click here would open the picker twice.
   fi.addEventListener('change', function () { addFiles(fi.files); fi.value = ''; });
+  // Both routes to a file — opening the picker or starting a drag — are preceded
+  // by one of these, which is early enough to hide the download behind.
+  ['pointerdown', 'keydown'].forEach(function (ev) { dz.addEventListener(ev, warmEngine); });
   ['dragenter', 'dragover'].forEach(function (ev) {
-    dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('drop--on'); });
+    dz.addEventListener(ev, function (e) {
+      e.preventDefault();
+      dz.classList.add('drop--on');
+      if (ev === 'dragenter') warmEngine();
+    });
   });
   ['dragleave', 'drop'].forEach(function (ev) {
     dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('drop--on'); });

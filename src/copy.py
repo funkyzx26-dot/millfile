@@ -178,10 +178,15 @@ SIZES = {
 }
 
 INDEX = {
-    "meta_desc": "Compress a PDF to an exact size - 100 KB, 300 KB, 1 MB and more. Free, unlimited, no sign-up. Processed in your browser, never uploaded.",
-    "h1": "Compress PDF to an Exact Size",
+    "meta_desc": "Compress a PDF to an exact size - 100 KB, 300 KB, 1 MB and more - or convert a camera RAW file to JPG. Free, in your browser, never uploaded.",
+    "h1": "Compress a PDF or Convert a Camera RAW Photo",
     "sub": "Free, unlimited, no sign-up - <b>your files never leave this device</b>",
     "intro": "Upload forms everywhere enforce fixed PDF limits: 100 KB for ID scans, 300 KB for applications, 1 MB for attachments. MillFile rebuilds your document to fit the exact limit you choose. Everything runs in this browser tab - no account, no watermark, and no server ever sees your file.",
+    # The two tools sit side by side, so each one needs to say what it is: a
+    # visitor who came for the RAW converter should not have to work out which
+    # panel is theirs from the chips inside it.
+    "tool_pdf": "Compress a PDF",
+    "tool_raw": "Convert a camera RAW photo",
     "steps": [
         ("Choose your target", "Pick the size the form demands, from 100 KB to 2 MB. Every common target has its own page with a direct link you can bookmark or share."),
         ("Drop your PDF", "Files are read straight from your device. A lossless rebuild runs first; if the result is still too big, pages are reduced in small steps until they fit the target."),
@@ -189,7 +194,7 @@ INDEX = {
     ],
     "faq": [
         ("What is MillFile?",
-         "A browser tool that compresses a PDF to a precise size limit - 100 KB, 300 KB, 1 MB or anything between. It is free, needs no account, and never uploads your files."),
+         "A set of browser tools that do their work on your own device. One compresses a PDF to a precise size limit - 100 KB, 300 KB, 1 MB or anything between. The other converts a camera RAW file (ARW, CR2, NEF, DNG and more) to JPEG. Both are free, need no account, and never upload your files."),
         ("Why do websites reject my PDF?",
          "They cap file size, commonly somewhere between 100 KB and 1 MB, while scanners and Word export well above those numbers. Compressing to the stated cap is the whole fix."),
         ("Is there a file size or usage limit?",

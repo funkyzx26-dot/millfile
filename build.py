@@ -37,6 +37,7 @@ SIZES = copy.SIZES
 NAV = ('<header class="site-head"><div class="wrap">'
        '<a class="brand" href="/">Mill<span>File</span></a>'
        '<nav class="nav"><a href="/how-it-works/">How it works</a>'
+       '<a href="/raw-to-jpg/">RAW to JPG</a>'
        '<a href="/about/">About</a>'
        '<a href="/privacy/">Privacy</a></nav></div></header>')
 
@@ -128,13 +129,17 @@ def head(title, desc, page_url, ld_objs, body_attr=""):
         esc(title), esc(desc), canonical, og, ld, body_attr, NAV)
 
 
-def tool_block():
+def tool_block(heading=None):
     # aria-pressed carries the selection to assistive tech: the --on class is
     # CSS only, so without it a screen reader cannot tell which target is set.
     chips = "\n".join(
         '      <button class="chip" type="button" data-kb="%d" aria-pressed="false">%s</button>' % (kb, label(kb))
         for kb in SIZE_ORDER)
+    # The heading only appears when the page shows more than one tool, where the
+    # panels have to be told apart.
+    head = '    <h2 class="tool__name">%s</h2>\n' % esc(heading) if heading else ''
     return ('  <section class="tool" id="tool">\n'
+            '%s'
             '    <div class="chips" id="chips" role="group" aria-label="Target size">\n'
             '      <span class="tool__target" style="margin:0 8px 0 0;align-self:center">Target size:</span>\n'
             '%s\n'
@@ -148,7 +153,7 @@ def tool_block():
             '    <p class="status" id="status" role="status" aria-live="polite"></p>\n'
             '    <ul class="queue" id="queue"></ul>\n'
             '    <button class="btn" type="button" id="download-all" hidden>Download all (.zip)</button>\n'
-            '  </section>') % chips
+            '  </section>') % (head, chips)
 
 
 RAW_QUALITY = (("High", "0.92"), ("Standard", "0.85"), ("Small", "0.72"))
@@ -159,13 +164,15 @@ RAW_ACCEPT = (".arw,.srf,.sr2,.cr2,.cr3,.nef,.nrw,.dng,.orf,.raf,.rw2,.raw,.pef,
               ".srw,.erf,.kdc,.dcr,.mos,.3fr,.iiq,.rwl,.mef,.mrw,.x3f,.jpg,.jpeg")
 
 
-def raw_tool_block():
+def raw_tool_block(heading=None):
     chips = "\n".join(
         '      <button class="chip%s" type="button" data-q="%s" aria-pressed="%s">%s</button>'
         % (" chip--on" if name == "Standard" else "", q,
            "true" if name == "Standard" else "false", name)
         for name, q in RAW_QUALITY)
+    head = '    <h2 class="tool__name">%s</h2>\n' % esc(heading) if heading else ''
     return ('  <section class="tool" id="raw-tool">\n'
+            '%s'
             '    <div class="chips" id="raw-quality" role="group" aria-label="JPEG quality">\n'
             '      <span class="tool__target" style="margin:0 8px 0 0;align-self:center">Quality:</span>\n'
             '%s\n'
@@ -178,7 +185,7 @@ def raw_tool_block():
             '    </label>\n'
             '    <p class="status" id="raw-status" role="status" aria-live="polite"></p>\n'
             '    <ul class="queue" id="raw-queue"></ul>\n'
-            '  </section>') % (chips, RAW_ACCEPT)
+            '  </section>') % (head, chips, RAW_ACCEPT)
 
 
 def rawlinks(current=None):
@@ -356,12 +363,26 @@ def check_assets(hashed):
 PDF_TOOL_MARKER = re.compile(r'id="drop"')
 RAW_TOOL_MARKER = re.compile(r'id="raw-drop"')
 
-# Two independent engines, one bundle each. The stylesheet is deliberately in
+# Two independent engines, one controller each. The stylesheet is deliberately in
 # neither: every page needs it.
-#   PDF: pdf.js + pdf-lib + JSZip (~941 KB raw / ~314 KB gzipped) + the app bundle
-#   RAW: LibRaw compiled to WebAssembly (~1.0 MB wasm, ~385 KB gzipped) + /assets/raw.js
-PDF_ENGINE_RE = re.compile(r'<script[^>]+src="/(?:vendor/(?:pdf\.min|pdf-lib\.min|jszip\.min)\.js|assets/app\.)[^"]*"')
-RAW_ENGINE_RE = re.compile(r'<script[^>]+src="/(?:vendor/rawconvert/|assets/raw\.)[^"]*"')
+#   PDF: pdf.js + pdf-lib + JSZip (~921 KB raw / ~314 KB gzipped), fetched by app.js
+#   RAW: LibRaw compiled to WebAssembly (~1.0 MB wasm, ~385 KB gzipped), fetched by raw.js
+#
+# Neither bundle is a script tag any more, so "this page has a PDF tool" is now
+# exactly "this page ships app.js" — the controller is the only trace left.
+PDF_ENGINE_RE = re.compile(r'<script[^>]+src="/assets/app\.[^"]*"')
+RAW_ENGINE_RE = re.compile(r'<script[^>]+src="/assets/raw\.[^"]*"')
+
+# Nothing may point straight at an engine file. If one did, the download would be
+# back on page load while the scope check still passed, so this is checked
+# separately rather than folded into it.
+EAGER_ENGINE_RE = re.compile(
+    r'<script[^>]+src="/vendor/(?:pdf\.min|pdf\.worker\.min|pdf-lib\.min|jszip\.min)\.js"'
+    r'|<script[^>]+src="/vendor/rawconvert/')
+
+# Engine paths a controller names. They are no longer visible in the HTML, so a
+# typo in one would only surface when a real visitor dropped a file.
+ENGINE_URL_RE = re.compile(r'["\'](/(?:vendor|assets)/[A-Za-z0-9._/-]+)["\']')
 
 
 def engine_scope_problems(rel, doc):
@@ -401,6 +422,44 @@ def check_engine_scope():
     return failures
 
 
+def check_no_eager_engines():
+    """No page may pull an engine bundle in as a script tag.
+
+    Both bundles are fetched by their controller on demand now. Re-adding a tag
+    would quietly put ~921 KB back on every tool page, and the scope check would
+    still pass because it only asks whether the controller is there. The harness
+    is exempt: it deliberately loads both engines to drive them directly.
+    """
+    failures = []
+    for path in sorted(DIST.rglob("*.html")):
+        rel = path.relative_to(DIST).as_posix()
+        if rel.startswith("tests/"):
+            continue
+        for m in EAGER_ENGINE_RE.finditer(path.read_text(encoding="utf-8")):
+            failures.append("%s: loads an engine directly (%s) — it must go through "
+                            "the controller, or every visitor pays for it on load"
+                            % (rel, m.group(0)[:70]))
+    return failures
+
+
+def check_engine_urls():
+    """Every engine path a controller names must exist in dist/.
+
+    These paths used to be visible in the HTML, where a missing file showed up as
+    a dead link in the scope check. They are JavaScript strings now, so the only
+    thing that can catch a typo before a user does is reading them back out.
+    """
+    failures = []
+    for stem in ("app", "raw"):
+        for path in sorted(DIST.glob("assets/%s.*.js" % stem)):
+            text = path.read_text(encoding="utf-8")
+            rel = path.relative_to(DIST).as_posix()
+            for url in sorted(set(ENGINE_URL_RE.findall(text))):
+                if not (DIST / url.lstrip("/")).exists():
+                    failures.append("%s names %s, which is not in dist/" % (rel, url))
+    return failures
+
+
 # Files each engine needs at runtime. The RAW engine is loaded by JavaScript
 # (the worker does importScripts(coreUrl) and resolves the .wasm through
 # wasmUrl), so none of it appears as a <script src> in the HTML and the scope
@@ -435,21 +494,27 @@ def scripts(kind="pdf"):
     finish the DOM first; the controllers only read the page, so they still run
     before DOMContentLoaded.
 
-    Pages that render no tool must not pull in an engine. The PDF bundle is
-    941 KB raw / ~314 KB gzipped and the RAW engine another ~385 KB gzipped, and
-    on a text page each controller would return at once from its own guard — so
-    every byte of that download and parse would be wasted.
+    Neither bundle is fetched at load. The PDF controller injects its three
+    library files the moment a visitor shows intent to drop a file, and the RAW
+    controller imports its worker the same way. What a page ships is therefore
+    the controller only — which is exactly what the scope gate keys off, so
+    sending app.js to a text page is still the mistake it was written to catch.
     """
     if kind == "none":
         return '</body>\n</html>\n'
+    if kind == "both":
+        # The homepage renders both tools. Both bundles are still fetched on
+        # demand, so the only thing this costs a visitor is the second controller
+        # (~10 KB); nobody downloads an engine they do not use.
+        return ('  <script defer src="/assets/app.js"></script>\n'
+                '  <script defer src="/assets/raw.js"></script>\n'
+                '</body>\n</html>\n')
     if kind == "raw":
-        # The LibRaw WASM is fetched by the worker at runtime, not by a tag here.
+        # The RAW engine (worker, glue, WASM) is fetched by raw.js on demand.
         return ('  <script defer src="/assets/raw.js"></script>\n'
                 '</body>\n</html>\n')
-    return ('  <script defer src="/vendor/pdf.min.js"></script>\n'
-            '  <script defer src="/vendor/pdf-lib.min.js"></script>\n'
-            '  <script defer src="/vendor/jszip.min.js"></script>\n'
-            '  <script defer src="/assets/app.js"></script>\n'
+    # pdf.js, pdf-lib and JSZip are fetched by app.js on demand.
+    return ('  <script defer src="/assets/app.js"></script>\n'
             '</body>\n</html>\n')
 
 
@@ -565,26 +630,34 @@ def build():
     ]
     steps = "\n".join(
         '      <li><b>%s</b>%s</li>' % (esc(t), esc(d)) for t, d in idx["steps"])
+    # Both tools go on the homepage, side by side. They serve audiences that do
+    # not overlap, so neither belongs below the other: someone who came for the
+    # RAW converter should not have to scroll past a PDF tool to reach it. The
+    # engines are fetched on demand, so hosting both here costs one extra ~10 KB
+    # controller and nothing else — a visitor downloads only what they use.
+    tools = ('  <div class="tools">\n%s\n%s\n  </div>'
+             % (tool_block(idx["tool_pdf"]), raw_tool_block(idx["tool_raw"])))
     body = (
         '  <section class="hero wrap">\n'
         '    <h1>%s</h1>\n'
         '    <p class="sub">%s</p>\n'
-        '    <p class="lede">%s</p>\n'
         '  </section>\n'
         '  <div class="wrap">\n'
         '%s\n'
-        '    <div class="note"><b>Files never uploaded.</b> Compression runs in this tab — drop a document, '
+        '    <div class="note"><b>Neither file is uploaded.</b> Both tools run in this tab — drop a file, '
         'download the result. Works for confidential scans and IDs.</div>\n'
-        '    <section class="content"><h2>How it works</h2>\n'
+        '    <section class="content"><h2>Compressing a PDF</h2>\n'
+        '      <p class="lede">%s</p>\n'
         '      <ol class="steps">\n%s\n      </ol>\n'
         '    </section>\n'
         '%s\n'
         '%s\n'
-        '  </div>\n') % (esc(idx["h1"]), bold(idx["sub"]), esc(idx["intro"]),
-                         tool_block(), steps, sizelinks(), faq_section("Frequently asked questions", idx["faq"]))
+        '  </div>\n') % (esc(idx["h1"]), bold(idx["sub"]), tools, esc(idx["intro"]),
+                         steps, sizelinks(),
+                         faq_section("Frequently asked questions", idx["faq"]))
     emit("index.html", page(
-        "Compress PDF to an Exact Size — Free, No Upload | %s" % BRAND,
-        idx["meta_desc"], "/", ld_index, "", body))
+        "Compress PDF or Convert RAW to JPG — No Upload | %s" % BRAND,
+        idx["meta_desc"], "/", ld_index, "", body, kind="both"))
 
     # ---- size landing pages ----
     for kb in SIZE_ORDER:
@@ -716,6 +789,8 @@ def build():
     version_asset_refs(hashed)
     failures.extend(check_assets(hashed))
     failures.extend(check_engine_scope())
+    failures.extend(check_no_eager_engines())
+    failures.extend(check_engine_urls())
     failures.extend(check_engine_files())
     failures.extend(check_dist())
 
@@ -730,7 +805,9 @@ def build():
           % (len(html_pages), expected_html, len(written)))
     print("FAQ structured check (JSON-LD == visible details): PASS")
     print("Link + title/description uniqueness: PASS")
-    print("Engine scope (PDF pages get the PDF engine, RAW pages the WASM, text pages neither): PASS")
+    print("Engine scope (PDF pages get the PDF controller, RAW pages the RAW one, text pages neither): PASS")
+    print("No page loads an engine bundle directly (both are fetched on demand): PASS")
+    print("Every engine path named by a controller exists in dist/: PASS")
     print("Engine files present for every tool page: PASS")
     print("Assets content-hashed: %s" % ", ".join(sorted(hashed.values())))
     if removed:

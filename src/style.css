@@ -124,9 +124,44 @@ a:hover { text-decoration: underline; }
 .sizelinks { font-size: 14.5px; color: var(--muted); }
 .sizelinks a { margin-right: 10px; white-space: nowrap; }
 
+/* The two tools sit side by side on the homepage. They serve audiences that do
+   not overlap, so neither belongs underneath the other - someone who came for
+   the RAW converter should not have to scroll past a PDF tool. */
+.tools {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  align-items: start; margin: 26px 0 10px;
+}
+.tools .tool { margin: 0; }
+.tool__name { font-size: 17px; margin: 0 0 14px; }
+
 @media (max-width: 640px) {
   .hero h1 { font-size: 26px; }
   .tool { padding: 16px; }
   .nav { gap: 12px; font-size: 13.5px; }
   .row { gap: 8px; }
+}
+
+/* Two tool panels stop working side by side below this: measured, the PDF size
+   chips still fit two rows at a 362px panel (780px viewport) but spill to three
+   at 353px (761px), which throws the two drop zones 38px out of line. 800px
+   leaves a margin for other platforms' font metrics. */
+@media (max-width: 800px) {
+  .tools { grid-template-columns: 1fr; }
+}
+
+/* Side by side, the PDF panel spends two rows on its size chips while the RAW
+   panel spends one, which would leave the drop zones 38px apart — the first
+   thing the eye catches when comparing them. Reserving two chip rows on both
+   sides keeps them level. Measured, not guessed: a chip is 30px and the gap is
+   8px, so two rows are 68px. */
+@media (min-width: 801px) {
+  .tools .chips { min-height: 68px; }
+}
+
+/* Four nav links need ~282px of text. Squeezed below that they break into two
+   lines each, which looks like a bug; giving the nav its own row under the
+   brand is deliberate and keeps every link on one line down to 320px. */
+@media (max-width: 430px) {
+  .site-head .wrap { flex-wrap: wrap; gap: 0 14px; }
+  .nav { margin-left: 0; width: 100%; gap: 12px; font-size: 13px; padding: 0 0 9px; }
 }
