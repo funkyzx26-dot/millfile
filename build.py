@@ -196,7 +196,12 @@ def rawlinks(current=None):
             continue
         parts.append('<a href="/%s/">%s</a>' % (slug, esc(copy.RAW[slug]["short"])))
     prefix = "Other formats: " if current else "Convert a different format: "
-    return '<p class="sizelinks">%s%s</p>' % (prefix, "".join(parts))
+    # Joined with a space, not "". The spacing is visual (margin-right in CSS),
+    # but the browser can only break a line where there is whitespace in the
+    # markup: with no space between the anchors the whole row is unbreakable and
+    # overflows the viewport. It went unnoticed while there were three links;
+    # at six, every RAW page overflowed from 320 px up to 414 px.
+    return '<p class="sizelinks">%s%s</p>' % (prefix, " ".join(parts))
 
 
 def sizelinks(current_kb=None):
@@ -206,7 +211,9 @@ def sizelinks(current_kb=None):
             continue
         parts.append('<a href="/%s/">%s</a>' % (slug_of(kb), label(kb)))
     prefix = "Other targets: " if current_kb else "Common targets: "
-    return '<p class="sizelinks">%s%s</p>' % (prefix, "".join(parts))
+    # Same defect as rawlinks(), and the same fix: whitespace in the markup is
+    # what gives the browser somewhere to wrap.
+    return '<p class="sizelinks">%s%s</p>' % (prefix, " ".join(parts))
 
 
 def faq_block(faq):

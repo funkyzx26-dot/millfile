@@ -122,7 +122,10 @@ a:hover { text-decoration: underline; }
 .faq summary { cursor: pointer; font-weight: 600; font-size: 15.5px; }
 .faq p { margin: 10px 0 2px; color: #3a4046; font-size: 15px; }
 .sizelinks { font-size: 14.5px; color: var(--muted); }
-.sizelinks a { margin-right: 10px; white-space: nowrap; }
+/* The gap between two links is a space in the markup plus this margin, so the
+   two together come to about 10px. Dropping the markup space makes the row
+   unbreakable; raising this to compensate would not restore the wrap points. */
+.sizelinks a { margin-right: 6px; white-space: nowrap; }
 
 /* The two tools sit side by side on the homepage. They serve audiences that do
    not overlap, so neither belongs underneath the other - someone who came for

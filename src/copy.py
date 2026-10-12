@@ -292,7 +292,7 @@ TERMS = {
 # RAW to JPG pages. Same shape as SIZES: slug is the whole path segment.
 # The engine is LibRaw compiled to WebAssembly, decoded in a worker; every claim
 # below was measured on a real 30 MB ARW (26 MP) before it was written.
-RAW_ORDER = ["raw-to-jpg", "nef-to-jpg", "arw-to-jpg", "dng-to-jpg"]
+RAW_ORDER = ["raw-to-jpg", "cr2-to-jpg", "cr3-to-jpg", "nef-to-jpg", "arw-to-jpg", "dng-to-jpg"]
 
 RAW = {
     "raw-to-jpg": {
@@ -317,6 +317,50 @@ RAW = {
              "Drop them together and they are converted one after another, each with its own download button. They run in sequence rather than in parallel, because a single 26 megapixel frame already needs a few hundred megabytes of working memory."),
             ("Is there a file size limit?",
              "No hard limit, but a very large file needs a capable device. The decoder and the JPEG encoder each hold a copy of the frame in memory, and a phone can run out. The page warns you before starting a file over 60 MB.")
+        ]
+    },
+    "cr2-to-jpg": {
+        "short": "CR2 to JPG",
+        "title": "Convert CR2 to JPG Online - Free, No Upload | MillFile",
+        "meta_desc": "Convert Canon CR2 files to full-resolution JPG in your browser, sRAW and mRAW included. Free, no sign-up, and the file is never uploaded.",
+        "h1": "Convert CR2 to JPG",
+        "lead": "CR2 is what Canon's DSLRs wrote for fifteen years. Drop one here and get a full-resolution JPG back, decoded on your own device - nothing is uploaded.",
+        "why_title": "Why CR2 files keep needing conversion",
+        "why": [
+            "Canon shot CR2 on its DSLRs from the mid-2000s until the mirrorless switch, so an archive of family photos from a 400D or a 5D Mark II is a folder of TIFF-based containers holding sensor data, a JPEG preview and Canon's maker notes. Nothing about the format is broken. The friction is downstream: portals, print shops and forums want a JPG, and the tools written to open raw files have moved on to newer cameras.",
+            "This page reads the container and decodes the sensor data here, in this tab. The decoder is LibRaw compiled to WebAssembly - the same code desktop raw software is built on - and our own measurement on a 26 megapixel frame is two to three seconds. A file from 2007 never leaves your machine."
+        ],
+        "faq": [
+            ("Does this work with sRAW and mRAW files?",
+             "Yes, and it is worth knowing what they are. On bodies that offer them, sRAW and mRAW are reduced-resolution raw: roughly half and a quarter of the sensor's linear resolution, JPEG-compressed inside the CR2 container. They decode normally here, but the JPG comes out at that smaller size, because that is what the camera recorded. Nothing is lost in conversion - the detail was never in the file."),
+            ("Will the JPG keep Canon's Picture Style?",
+             "No. Picture Style is a rendering decision applied on top of the raw data, and it lives in Canon's own processing, not in the pixels. This page renders with the white balance recorded in the file and a standard demosaic, so the JPG is a clean, neutral full-resolution image. Use it when you want the picture rather than the look."),
+            ("Are fifteen-year-old CR2 files still readable?",
+             "Generally yes, and old files are the safer case. The CR2 container changed very little across Canon's DSLR years, so a decoder that reads a 2011 file reads a 2017 one. The risk runs the other way: a body released after the decoder was built can use a variant nothing recognises. If that happens the row says so, per file, instead of failing quietly."),
+            ("Does converting to JPG lose highlight detail?",
+             "Some, unavoidably. The decode keeps the full bit depth the sensor produced, but a JPEG is 8 bits per channel, so very fine gradation across a bright sky can band where the CR2 held it smoothly. If you need more than 8 bits, keep the CR2 - this page produces a JPG, and that limit is the format's, not the converter's.")
+        ]
+    },
+    "cr3-to-jpg": {
+        "short": "CR3 to JPG",
+        "title": "Convert CR3 to JPG Online - Free, No Upload | MillFile",
+        "meta_desc": "Convert Canon CR3 files, C-RAW included, to full-resolution JPG in your browser. Free, no account, and the file is never uploaded anywhere.",
+        "h1": "Convert CR3 to JPG",
+        "lead": "CR3 is what Canon's mirrorless cameras write. Drop one here for a full-resolution JPG, decoded in this tab - no account, no watermark, nothing uploaded.",
+        "why_title": "Why CR3 is a different problem from CR2",
+        "why": [
+            "Canon did not extend CR2 for mirrorless; it moved to a container built on the ISO base media file format, the same family MP4 and HEIF use, starting with the EOS R in 2018. That makes CR3 better structured and better compressed, and it also means anything written before 2018 has no reader for it at all - which is why a file from a new R-series body can stall a print shop's older pipeline, or an older version of an editor.",
+            "CR3 also carries the compressed option Canon calls C-RAW, a lossy decision made in-camera that this page decodes exactly as it finds it. Either way the frame is rendered here: the file is read into this tab, the sensor data is demosaiced on your machine, and a full-resolution JPG comes back as a download."
+        ],
+        "faq": [
+            ("What is C-RAW, and does it still convert?",
+             "C-RAW is Canon's compressed raw option on recent bodies - smaller files, at the cost of a lossy step made in the camera. It converts here the same way any other CR3 does. The JPG carries whatever detail the camera kept, which is a decision already made before the file ever reaches this page."),
+            ("Why do older programs refuse my CR3?",
+             "Because CR3 is a newer container than CR2 and arrived only in 2018. Software built before then has no reader for it, and Adobe, Capture One and the phone apps each added support at their own pace. Converting here sidesteps that entirely: the decoder is compiled into the page, so nothing needs to be installed or updated."),
+            ("Does this read the JPEG preview inside the file instead?",
+             "No - it decodes the raw track. CR3 stores a full-size preview so the camera can show the picture instantly on its rear screen, and plenty of quick tools grab that and hand it back as if it were the file. That would give you a smaller image than the CR3 actually holds, which is why this page takes the slower, honest route."),
+            ("Is CR3 better quality than CR2?",
+             "Not inherently. The sensor decides how much detail is in the file; the container decides how it is stored. CR3's structure and compression options are better engineered, but a 30 megapixel CR3 from an R5 and a 30 megapixel CR2 from a 5D Mark IV hold comparable detail, and both decode to a JPG the same way.")
         ]
     },
     "nef-to-jpg": {
