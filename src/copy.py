@@ -347,7 +347,7 @@ RAW = {
         "title": "Convert CR3 to JPG Online - Free, No Upload | MillFile",
         "meta_desc": "Convert Canon CR3 files, C-RAW included, to full-resolution JPG in your browser. Free, no account, and the file is never uploaded anywhere.",
         "h1": "Convert CR3 to JPG",
-        "lead": "CR3 is what Canon's mirrorless cameras write. Drop one here for a full-resolution JPG, decoded in this tab - no account, no watermark, nothing uploaded.",
+        "lead": "Canon moved to CR3 with the EOS R in 2018, and that switch is why this format causes trouble. Drop one here for a full-resolution JPG, decoded inside your browser - nothing is uploaded.",
         "why_title": "Why CR3 is a different problem from CR2",
         "why": [
             "Canon did not extend CR2 for mirrorless; it moved to a container built on the ISO base media file format, the same family MP4 and HEIF use, starting with the EOS R in 2018. That makes CR3 better structured and better compressed, and it also means anything written before 2018 has no reader for it at all - which is why a file from a new R-series body can stall a print shop's older pipeline, or an older version of an editor.",
@@ -369,7 +369,7 @@ RAW = {
         "title": "Convert ORF to JPG Online - Free, No Upload | MillFile",
         "meta_desc": "Convert Olympus ORF files to full-resolution JPG in your browser. Free, no sign-up, and the file is never uploaded to a server.",
         "h1": "Convert ORF to JPG",
-        "lead": "ORF is what Olympus cameras write. Drop one here for a full-resolution JPG, decoded in this tab - no account, no watermark, nothing uploaded.",
+        "lead": "ORF is what Olympus cameras write, and some of those files hold more than one exposure. Bring one here and you get a full-resolution JPG back, decoded on your own device - nothing is uploaded.",
         "why_title": "Why ORF files are worth converting carefully",
         "why": [
             "Olympus writes ORF as a TIFF-based container, and some cameras pack more than one exposure into a single file: the high-resolution composite modes stack several frames into one. A converter that assumes one frame per file hands you the merge and calls it done, while one that understands the container can separate them. Either way the JPG here comes from decoding the sensor data rather than from the preview, so the resolution is the sensor's and not the thumbnail's.",
@@ -435,7 +435,7 @@ RAW = {
         "title": "Convert NEF to JPG Online - Free, No Upload | MillFile",
         "meta_desc": "Convert Nikon NEF files to full-resolution JPG in your browser. Free, no sign-up, no watermark, and the file is never uploaded to a server.",
         "h1": "Convert NEF to JPG",
-        "lead": "Nikon NEF files are unreadable to most websites, printers and email clients. Drop one here and get a full-resolution JPG back, decoded on your own device - nothing is uploaded.",
+        "lead": "Nikon NEF files are unreadable to most websites, printers and email clients. Give one to this page and you get a full-resolution JPG back, decoded on your own device - nothing is uploaded.",
         "why_title": "What a NEF needs before anyone else can open it",
         "why": [
             "Nikon writes NEF as a TIFF-based container holding sensor data, a JPEG preview, and a set of maker notes that vary by model and by compression setting. That is why NEF support is uneven: a viewer that handles a D750 file can fail on a newer body that uses high-efficiency compression. LibRaw tracks those variants, and it is the decoder running inside this page.",

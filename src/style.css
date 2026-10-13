@@ -40,7 +40,12 @@ a:hover { text-decoration: underline; }
 .legal { margin-top: 20px; font-size: 13px; }
 
 /* hero */
-.hero { padding: 44px 0 8px; }
+/* Vertical padding only. Writing it as a shorthand here silently replaced
+   .wrap's `padding: 0 20px` - same specificity, this rule comes later - so the
+   hero lost its horizontal inset and every h1 on the site sat 20px to the left
+   of the content below it. Declaring only the two sides we mean keeps the
+   gutter owned by .wrap, where changing it changes every page at once. */
+.hero { padding-top: 44px; padding-bottom: 8px; }
 .hero h1 { font-size: 32px; line-height: 1.2; margin: 0 0 10px; letter-spacing: -0.01em; }
 .hero .sub { font-size: 17.5px; color: var(--muted); margin: 0 0 6px; }
 .hero .sub b { color: var(--accent); font-weight: 600; }

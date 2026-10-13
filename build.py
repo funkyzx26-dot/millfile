@@ -165,13 +165,24 @@ RAW_ACCEPT = (".arw,.srf,.sr2,.cr2,.cr3,.nef,.nrw,.dng,.orf,.raf,.rw2,.raw,.pef,
               ".srw,.erf,.kdc,.dcr,.mos,.3fr,.iiq,.rwl,.mef,.mrw,.x3f,.jpg,.jpeg")
 
 
-def raw_tool_block(heading=None):
+# The article depends on how a format name is spoken, not on how it is
+# spelled: ORF is read "are-eff" and takes "an", while RAF ("raff") and RW2
+# ("ar-double-you") take "a". A new format needs its spoken form checked.
+VOWEL_SOUND_FORMATS = {"ORF"}
+
+
+def raw_tool_block(heading=None, fmt=None):
     chips = "\n".join(
         '      <button class="chip%s" type="button" data-q="%s" aria-pressed="%s">%s</button>'
         % (" chip--on" if name == "Standard" else "", q,
            "true" if name == "Standard" else "false", name)
         for name, q in RAW_QUALITY)
     head = '    <h2 class="tool__name">%s</h2>\n' % esc(heading) if heading else ''
+    # On a page dedicated to one format the drop zone names that format. It is
+    # the most prominent thing below the heading, and "Drop a RAW file here"
+    # reads as generic copy pasted onto a page whose whole subject is RAF.
+    drop = ("Drop %s %s file here" % ("an" if fmt in VOWEL_SOUND_FORMATS else "a", esc(fmt))
+            if fmt else "Drop a RAW file here")
     return ('  <section class="tool" id="raw-tool">\n'
             '%s'
             '    <div class="chips" id="raw-quality" role="group" aria-label="JPEG quality">\n'
@@ -180,13 +191,13 @@ def raw_tool_block(heading=None):
             '    </div>\n'
             '    <p class="tool__target">Selected: <strong id="raw-quality-label">Standard</strong></p>\n'
             '    <label class="drop" id="raw-drop">\n'
-            '      <strong>Drop a RAW file here</strong>\n'
+            '      <strong>%s</strong>\n'
             '      <span class="hint">or click to choose files — converted on this device, never uploaded</span>\n'
             '      <input class="file-input" type="file" id="raw-input" accept="%s" multiple>\n'
             '    </label>\n'
             '    <p class="status" id="raw-status" role="status" aria-live="polite"></p>\n'
             '    <ul class="queue" id="raw-queue"></ul>\n'
-            '  </section>') % (head, chips, RAW_ACCEPT)
+            '  </section>') % (head, chips, drop, RAW_ACCEPT)
 
 
 def rawlinks(current=None):
@@ -738,6 +749,9 @@ def build():
     for slug in copy.RAW_ORDER:
         c = copy.RAW[slug]
         url = "/%s/" % slug
+        # raf-to-jpg -> RAF. Derived from the slug rather than repeated in the
+        # copy table, so a new format page cannot forget to name its own format.
+        fmt = slug.split("-to-jpg")[0].upper()
         why = "\n".join('      <p>%s</p>' % esc(p) for p in c["why"])
         body = (
             '  <section class="hero wrap">\n'
@@ -749,12 +763,13 @@ def build():
             '%s\n'
             '    <section class="content">\n'
             '      <h2>%s</h2>\n%s\n'
-            '      <div class="note"><b>Nothing is uploaded.</b> The RAW file is decoded in this tab by '
+            '      <div class="note"><b>Nothing is uploaded.</b> The %s file is decoded in this tab by '
             'LibRaw compiled to WebAssembly — no upload step, no server copy, no account.</div>\n'
             '    </section>\n'
             '%s\n'
-            '  </div>\n') % (esc(c["h1"]), esc(c["lead"]), raw_tool_block(), rawlinks(slug),
-                             esc(c["why_title"]), why,
+            '  </div>\n') % (esc(c["h1"]), esc(c["lead"]), raw_tool_block(fmt=fmt),
+                             rawlinks(slug),
+                             esc(c["why_title"]), why, esc(fmt),
                              faq_section("Questions about converting %s" % c["short"], c["faq"]))
         emit("%s/index.html" % slug, page(
             c["title"], c["meta_desc"], url, [faq_ld(c["faq"])], "", body, kind="raw"))
