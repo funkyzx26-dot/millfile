@@ -292,7 +292,8 @@ TERMS = {
 # RAW to JPG pages. Same shape as SIZES: slug is the whole path segment.
 # The engine is LibRaw compiled to WebAssembly, decoded in a worker; every claim
 # below was measured on a real 30 MB ARW (26 MP) before it was written.
-RAW_ORDER = ["raw-to-jpg", "cr2-to-jpg", "cr3-to-jpg", "nef-to-jpg", "arw-to-jpg", "dng-to-jpg"]
+RAW_ORDER = ["raw-to-jpg", "cr2-to-jpg", "cr3-to-jpg", "nef-to-jpg", "arw-to-jpg", "dng-to-jpg",
+             "orf-to-jpg", "raf-to-jpg", "rw2-to-jpg"]
 
 RAW = {
     "raw-to-jpg": {
@@ -361,6 +362,72 @@ RAW = {
              "No - it decodes the raw track. CR3 stores a full-size preview so the camera can show the picture instantly on its rear screen, and plenty of quick tools grab that and hand it back as if it were the file. That would give you a smaller image than the CR3 actually holds, which is why this page takes the slower, honest route."),
             ("Is CR3 better quality than CR2?",
              "Not inherently. The sensor decides how much detail is in the file; the container decides how it is stored. CR3's structure and compression options are better engineered, but a 30 megapixel CR3 from an R5 and a 30 megapixel CR2 from a 5D Mark IV hold comparable detail, and both decode to a JPG the same way.")
+        ]
+    },
+    "orf-to-jpg": {
+        "short": "ORF to JPG",
+        "title": "Convert ORF to JPG Online - Free, No Upload | MillFile",
+        "meta_desc": "Convert Olympus ORF files to full-resolution JPG in your browser. Free, no sign-up, and the file is never uploaded to a server.",
+        "h1": "Convert ORF to JPG",
+        "lead": "ORF is what Olympus cameras write. Drop one here for a full-resolution JPG, decoded in this tab - no account, no watermark, nothing uploaded.",
+        "why_title": "Why ORF files are worth converting carefully",
+        "why": [
+            "Olympus writes ORF as a TIFF-based container, and some cameras pack more than one exposure into a single file: the high-resolution composite modes stack several frames into one. A converter that assumes one frame per file hands you the merge and calls it done, while one that understands the container can separate them. Either way the JPG here comes from decoding the sensor data rather than from the preview, so the resolution is the sensor's and not the thumbnail's.",
+            "Newer Olympus bodies also offer a Digital RAW option that writes a DNG instead. LibRaw handles both, and the path is the same either way: the file is read into this tab, the frame is demosaiced on your machine, and a full-resolution JPG comes back as a download."
+        ],
+        "faq": [
+            ("What if my ORF contains more than one frame?",
+             "It still converts. The high-resolution composite modes on some Olympus bodies record several exposures into one file, and what you get here is the merged image the camera built from them. Pulling the stacked frames apart individually needs a tool written for that structure rather than a general RAW converter - this is one of the few things a single JPG cannot carry."),
+            ("Does it handle Olympus Digital RAW?",
+             "Usually. Digital RAW on recent bodies produces a DNG, and LibRaw decodes DNG, so those files generally work. The extra processing data a DNG carries is not applied, so the render is plainer than the JPEG the camera shows on its own screen."),
+            ("Will the JPG keep my Olympus picture mode?",
+             "No. A picture mode is a rendering choice made on top of the sensor data, and it is stored alongside the raw rather than inside it. This page renders with the white balance recorded in the file and a standard demosaic, so expect the same picture with flatter colour than the camera's own preview."),
+            ("Why is my ORF so big for its resolution?",
+             "Older Olympus bodies wrote largely uncompressed raw, which is where the file size comes from - there is less in it, not more. Newer models compress. Either way the page warns you before starting a file over 60 MB, because a large frame needs a capable device to decode and re-encode.")
+        ]
+    },
+    "raf-to-jpg": {
+        "short": "RAF to JPG",
+        "title": "Convert RAF to JPG Online - Free, No Upload | MillFile",
+        "meta_desc": "Convert Fujifilm RAF files to full-resolution JPG in your browser. Free, no account, and the file is never uploaded anywhere.",
+        "h1": "Convert RAF to JPG",
+        "lead": "RAF is Fujifilm's own raw format, and it is unusual under the hood. Drop one here for a full-resolution JPG, decoded on your device - nothing is uploaded.",
+        "why_title": "Why RAF behaves differently from most raw files",
+        "why": [
+            "Fujifilm did not build RAF on TIFF like most raw formats. It wraps the sensor data in an Exif-based structure with a custom layout, and that is why RAF has a history of upsetting converters: tools that assume the usual container read the wrong offsets and report strange dimensions or a broken preview. LibRaw has a dedicated path for RAF, and that is the decoder running in this tab.",
+            "Fujifilm's film simulations - Pro Neg Hi, Velvia, Astia, Classic Chrome - are stored alongside the raw data rather than baked into it. So a RAF converted here gives you the picture with the white balance recorded in the file and no simulation applied: a neutral full-resolution render rather than the look of the film mode you were previewing in the camera."
+        ],
+        "faq": [
+            ("Why does RAF break other converters?",
+             "Because it is not a TIFF. Fujifilm wraps the sensor data in an Exif-based structure with its own layout, so a decoder that assumes the common raw container reads the wrong offsets and comes back with implausible dimensions or an unusable preview. Decoders written for RAF handle it correctly; the one here is."),
+            ("Will my film simulation be applied?",
+             "No. Velvia, Pro Neg Hi and the rest are stored next to the raw data rather than inside it, and choosing one is a rendering decision made afterwards. This page renders with the white balance recorded in the file, so what comes back is a neutral image rather than the look you were previewing."),
+            ("Does it handle GFX medium format files?",
+             "Yes - GFX bodies write RAF as well, and the decoder is the same one. Expect a longer wait than an APS-C frame, because a medium format sensor has far more pixels to demosaic, and expect it to need more memory while it does."),
+            ("Does this use the embedded preview instead?",
+             "No. As on the other format pages here, the frame is decoded from the sensor data, which is why it takes a couple of seconds instead of being instant. In exchange you get the full frame rather than the smaller JPEG Fujifilm stores for playback on the camera.")
+        ]
+    },
+    "rw2-to-jpg": {
+        "short": "RW2 to JPG",
+        "title": "Convert RW2 to JPG Online - Free, No Upload | MillFile",
+        "meta_desc": "Convert Panasonic RW2 files to full-resolution JPG in your browser. Free, no sign-up, and the file is never uploaded anywhere.",
+        "h1": "Convert RW2 to JPG",
+        "lead": "Panasonic writes RW2 with almost nothing done to it, which is why photographers trust it and why it needs a real decode. Drop one here for a full-resolution JPG.",
+        "why_title": "What actually makes RW2 different",
+        "why": [
+            "Panasonic applies very little processing before writing an RW2: little or no compression, and a minimum of metadata. That is the appeal - the file stays close to what the sensor recorded, which leaves more room for editing later - and it is also why an RW2 can be surprisingly large for its pixel count, and why there is no cheap shortcut to reading it.",
+            "The trade-off is that fewer baked-in conveniences come with it: no compression keeping the file small, and no colour profile doing some of the work for you. This page decodes the frame locally and hands back a full-resolution JPG using the white balance recorded in the file - a plain render of the data rather than something the camera dressed up first."
+        ],
+        "faq": [
+            ("Why is my RW2 so large?",
+             "Because Panasonic barely compresses it and stores very little processed data. A 20-megapixel frame can be several times the size of an equivalent compressed raw from another brand. That is a property of the format rather than something that went wrong, and it is one of the reasons people pick RW2 for editing."),
+            ("Does it handle Panasonic's high-resolution composite modes?",
+             "Usually. The stacking modes on several Lumix bodies record more than one exposure in a single RW2, and the merged image decodes normally here. Separating the individual stacked frames is a different job and needs a tool built for that structure."),
+            ("Will the colours match Panasonic's own software?",
+             "Not exactly. This page uses the white balance recorded in the file and a standard demosaic, while Panasonic's own pipeline applies its own processing on top. Expect the same picture with slightly different colour rendering - and expect the full sensor resolution either way."),
+            ("Is there a size limit?",
+             "No hard limit, but the decoder and the JPEG encoder each hold a copy of the frame in memory, so a very large file needs a capable device. Because RW2 files run big by design, that warning comes up here more often than on the compressed formats; the page tells you before it starts a file over 60 MB.")
         ]
     },
     "nef-to-jpg": {
