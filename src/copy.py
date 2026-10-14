@@ -238,7 +238,7 @@ PRIVACY = {
         ("No accounts, no profiles",
          ["There is no sign-up, no login and no user database. The tool cannot associate a file with a person because it never meets either."]),
         ("No tracking at this stage",
-         ["The site sets no analytics cookies and loads no third-party trackers. All JavaScript - the PDF engine, the packer for zip downloads - is served from this same domain, so nothing phones home."]),
+         ["The site sets no analytics cookies and loads nothing from a third-party domain. All JavaScript - the PDF engine, the packer for zip downloads - is served from this same domain, and the file you drop never leaves it. One thing does go out: a cookieless page-view ping to Vercel's own analytics, also on this domain. It records the page, the site that referred you and a country inferred at the edge. It never sees your file, and it sets no cookie that follows you to another site."]),
         ("What remains on your side",
          ["Files you download land in your normal downloads folder under your browser's rules. Clearing the tab clears everything the page was holding; there is nothing else to delete on our side, because there is no our side."])
     ]
@@ -493,7 +493,7 @@ RAW = {
             ("What about DNG files that hold a JPEG instead of sensor data?",
              "They still convert, and quickly, because there is far less to decode. The output resolution can be lower than you expect, because that detail was never in the file to begin with."),
             ("Is my DNG uploaded anywhere?",
-             "No. There is no upload step and no backend: the file is read into this tab, decoded here, and turned into a download you save yourself. The page loads no analytics and no third-party scripts either.")
+             "No. There is no upload step and no backend: the file is read into this tab, decoded here, and turned into a download you save yourself. Nothing is loaded from another domain either, and the only thing the page reports is a cookieless page-view ping - your file is never part of it.")
         ]
     }
 }

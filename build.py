@@ -102,6 +102,17 @@ def footer():
                                   datetime.date.today().year, esc(BRAND))
 
 
+# Analytics. This is Vercel's own script on our own domain: the beacon posts
+# to /_vercel/insights/event, so there is no third-party origin for a blocker to
+# drop and nothing to consent to. It sets no cookies, fingerprints nothing, and
+# discards the visitor hash after 24h. That is what lets the Privacy page keep
+# its promise — it claims "no third-party trackers", not "no measurement".
+# The reason UTM works at all is that Vercel records the raw query string, so
+# ?utm_source=x shows up in the dashboard's referrer column without the site
+# reading or storing it. Swap this for Google Analytics and the claim breaks.
+ANALYTICS = '  <script defer src="/_vercel/insights/script.js"></script>\n'
+
+
 def head(title, desc, page_url, ld_objs, body_attr=""):
     ld = "\n".join(
         '  <script type="application/ld+json">%s</script>' % json.dumps(o, ensure_ascii=False)
@@ -126,8 +137,8 @@ def head(title, desc, page_url, ld_objs, body_attr=""):
         '<text x=\'16\' y=\'22\' font-size=\'17\' font-family=\'Arial\' font-weight=\'bold\' fill=\'white\' text-anchor=\'middle\'%%3EM%%3C/text%%3E%%3C/svg%%3E">\n'
         '  <link rel="apple-touch-icon" href="/favicon.svg">\n'
         '  <link rel="stylesheet" href="/assets/style.css">\n'
-        '%s</head>\n<body%s>\n%s\n') % (
-        esc(title), esc(desc), canonical, og, ld, body_attr, NAV)
+        '%s%s</head>\n<body%s>\n%s\n') % (
+        esc(title), esc(desc), canonical, og, ld, ANALYTICS, body_attr, NAV)
 
 
 def tool_block(heading=None):
@@ -322,6 +333,10 @@ def check_dist():
             else:
                 bucket[value] = rel
         for ref in REF_RE.findall(doc):
+            # /_vercel/* is injected by Vercel's edge, not built by us, so it
+            # has no file in dist to find. Requiring one would be wrong.
+            if ref.startswith("/_vercel/"):
+                continue
             target = DIST / ref.strip("/")
             if not (target.exists() or (target / "index.html").exists()):
                 failures.append("%s: link to a file that is not in dist: %s" % (rel, ref))
@@ -644,6 +659,42 @@ def content_date():
             or _git(["log", "-1", "--format=%cs"]))
 
 
+def check_third_party():
+    """The Privacy page promises that nothing phones home, and it means it: no
+    page may reference an off-origin script, style, image or beacon. This is a
+    gate, not a style rule, because the promise is the product. MillFile's whole
+    pitch is "your passport scan never leaves your device" — a single tracker
+    somebody pastes in to raise session counts silently breaks it, and the
+    person adding it usually isn't the person who wrote that sentence.
+
+    The one exemption is /_vercel/insights/, which is served from this same
+    domain by Vercel's own edge, sets no cookies and fingerprints nothing. It
+    counts as same-origin here precisely so this gate doesn't force its removal.
+
+    Our own absolute URLs are not third-party either. canonical and og:url have
+    to spell out https://millfile.com — a relative href is a valid but weaker
+    signal, and these pages are generated with BASE_URL for exactly that reason.
+    So the rule is "must be our own host or _vercel", not "must be relative".
+    """
+    failures = []
+    host = re.sub(r'^https?://(www\.)?', '', (BASE_URL or "")).rstrip('/')
+    for path in sorted(DIST.rglob("*.html")):
+        rel = path.relative_to(DIST).as_posix()
+        doc = path.read_text(encoding="utf-8")
+        for match in EXTERNAL_REF_RE.finditer(doc):
+            where = match.group(1)
+            if where == host or where.startswith(host + "/") or where.startswith("_vercel"):
+                continue
+            failures.append(
+                "%s: reaches a third-party origin, which the Privacy page denies: %s"
+                % (rel, match.group(0)[:90]))
+    return failures
+
+
+EXTERNAL_REF_RE = re.compile(
+    r'(?:src|href)\s*=\s*["\']\s*(?:https?:)?//([^"\'>\s/]+)', re.I)
+
+
 def build():
     failures = []
     # dist/ is not wiped. A recursive delete of the whole tree is a bulk delete
@@ -859,6 +910,7 @@ def build():
     failures.extend(check_engine_urls())
     failures.extend(check_engine_files())
     failures.extend(check_dist())
+    failures.extend(check_third_party())
 
     if failures:
         print("BUILD FAILED — integrity checks:")
